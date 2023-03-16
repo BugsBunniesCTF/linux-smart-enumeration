@@ -12,6 +12,6 @@ gathers about the system.
 
 ## Usage
 
-`wget "https://raw.githubusercontent.com/diego-treitos/linux-smart-enumeration/master/lse.sh " -O - | /bin/bash`
+`wget "https://raw.githubusercontent.com/BugsBunniesCTF/linux-smart-enumeration/master/lse.sh" -O - | /bin/bash`
 
-`curl -s -L "https://github.com/diego-treitos/linux-smart-enumeration/releases/latest/download/lse.sh" | /bin/bash`
+`curl -s -L "https://raw.githubusercontent.com/BugsBunniesCTF/linux-smart-enumeration/master/lse.sh" | /bin/bash`
