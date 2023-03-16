@@ -1,11 +1,11 @@
 #!/bin/sh
-# shellcheck disable=1003,1091,2006,2016,2034,2039
+# shellcheck disable=1003,1091,2006,2016,2034,2039,3043
 # vim: set ts=2 sw=2 sts=2 fdm=marker fmr=#(,#) et:
 
 # Author: Diego Blanco <diego.blanco@treitos.com>
 # GitHub: https://github.com/diego-treitos/linux-smart-enumeration
 #
-lse_version="4.5nw"
+lse_version="4.10nw"
 
 ##( Colors
 #
@@ -65,8 +65,7 @@ crossedout_off='\e[29m'
 ##( Globals
 #
 # user
-lse_user_id="$UID"
-[ -z "$lse_user_id" ] && lse_user_id="`id -u`"
+lse_user_id="`id -u`"
 lse_user="$USER"
 [ -z "$lse_user" ] && lse_user="`id -nu`"
 lse_pass=""
@@ -78,7 +77,7 @@ lse_arch="`uname -m`"
 lse_linux="`uname -r`"
 lse_hostname="`hostname`"
 lse_distro=`command -v lsb_release >/dev/null 2>&1 && lsb_release -d | sed 's/Description:\s*//' 2>/dev/null`
-[ -z "$lse_distro" ] && lse_distro="`(source /etc/os-release && echo "$PRETTY_NAME")2>/dev/null`"
+[ -z "$lse_distro" ] && lse_distro="`(. /etc/os-release && echo "$PRETTY_NAME")2>/dev/null`"
 lse_distro_codename="" # retrieved below with lse_get_distro_codename
 
 # lse
@@ -406,7 +405,7 @@ lse_test() { #(
   # Print name and line
   cecho "${white}[${l}${white}] ${grey}${id}${white} $name${grey}"
   for i in $(seq $((${#id}+${#name}+10)) 79); do
-    echo -n "."
+    printf "."
   done
 
   # Check dependencies
@@ -559,10 +558,23 @@ lse_procmon() { #(
   # monitor processes
   #NOTE: The first number will be the number of occurrences of a process due to
   #      uniq -c
+  local ps_args
+  local ps_busybox
+  if ps -V 2>&1 | grep -iq busybox; then
+    ps_args='-o pid,user,args'
+    ps_busybox=true
+  else
+    ps_args="-ewwwo start_time,pid,user:50,args"
+    ps_busybox=false
+  fi
   while [ -f "$lse_procmon_lock" ]; do
-    ps -ewwwo start_time,pid,user:50,args
+    if $ps_busybox; then
+      ps $ps_args | sed 's/^\([0-9]*\)/? \1 /g'
+    else
+      ps $ps_args
+    fi
     sleep 0.001
-  done | grep -v 'ewwwo start_time,pid,user:50,args' | sed 's/^ *//g' | tr -s '[:space:]' | grep -v "^START" | grep -Ev '[^ ]+ [^ ]+ [^ ]+ \[' | sort -Mr | uniq -c | sed 's/^ *//g' > "$lse_procmon_data"
+  done | grep -Ev "(pid,user|$lse_user *sed s/)" | sed 's/^ *//g' | tr -s '[:space:]' | grep -Ev "PID *USER *COMMAND" | grep -Ev '[^ ]+ [^ ]+ [^ ]+ \[' | sort -Mr | uniq -c | sed 's/^ *//g' > "$lse_procmon_data"
 } #)
 lse_proc_print() { #(
   # Pretty prints output from lse_procmom received via stdin
@@ -605,7 +617,7 @@ lse_get_distro_codename() { #(
     grep -qi "red hat" /etc/redhat-release && distro=redhat
     grep -qi "rocky"   /etc/redhat-release && distro=rocky
   fi
-  echo -n "$distro" | tr '[:upper:]' '[:lower:]' | tr -d \"\'
+  printf '%s' "$distro" | tr '[:upper:]' '[:lower:]' | tr -d \"\'
 } #)
 lse_is_version_bigger() { #(
   # check if version v1 is bigger than v2
@@ -625,9 +637,9 @@ lse_get_pkg_version() { #(
     debian|ubuntu)
       pkg_version=`dpkg -l "$pkg_name" 2>/dev/null | grep -E '^ii' | tr -s ' ' | cut -d' ' -f3`
       ;;
-    centos|redhat|fedora|opsuse|rocky)
+    centos|redhat|fedora|opsuse|rocky|amzn)
       pkg_version=`rpm -q "$pkg_name" 2>/dev/null`
-      pkg_version="${pkg_version##$pkg_name-}"
+      pkg_version="${pkg_version##"$pkg_name"-}"
       pkg_version=`echo "$pkg_version" | sed -E 's/\.(aarch64|armv7hl|i686|noarch|ppc64le|s390x|x86_64)$//'`
       ;;
     *)
@@ -1468,8 +1480,12 @@ lse_run_tests_processes() {
 lse_run_tests_cves() {
   lse_header "cve" "CVEs"
   if [ "${#lse_cve_list}" = 1 ]; then
-    echo "In order to test for CVEs, download lse.sh from the GitHub releases page."
-    echo "Alternatively, build lse_cve.sh using tools/package_cvs_into_lse.sh from the repository."
+    if [ -z "$lse_selection" ] || printf "%s" "$lse_selection" | grep -iq 'cve'; then
+      printf "%s\n%s\n%s" \
+        "  In order to test for CVEs, download lse.sh from the GitHub releases page." \
+        "  Alternatively, build lse_cve.sh using tools/package_cvs_into_lse.sh from the" \
+        " repository."
+    fi
   else
     for lse_cve in $lse_cve_list; do
       eval "$(printf '%s' "$lse_cve" | base64 -d | gunzip -c)"
