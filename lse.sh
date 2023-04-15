@@ -1547,7 +1547,7 @@ main() {
   lse_run_tests_services
   lse_run_tests_software
   lse_run_tests_containers
-  lse_run_tests_processes
+  # lse_run_tests_processes
   lse_run_tests_cves
 
   lse_exit 0
